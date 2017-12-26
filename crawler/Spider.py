@@ -80,8 +80,6 @@ class Spider:
             for j in range(start[1], 26):
                 for k in range(start[2], 26):
                     self.params['term'] = chr(97 +i) +chr(97 +j) +chr(97 +k)
-                    print (self.params['term'])
-                    continue
                     self.__crawl()
                     self.state.Update(i, j, k)
 
