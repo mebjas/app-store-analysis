@@ -73,10 +73,15 @@ class Spider:
     '''Public method to start the process'''
     def Start(self):
         cycleCount = 0
-        for i in range(self.state.dict['start'][0], 26):
-            for j in range(self.state.dict['start'][1], 26):
-                for k in range(self.state.dict['start'][2], 26):
+
+        start = [i for i in self.state.dict['start']]
+
+        for i in range(start[0], 26):
+            for j in range(start[1], 26):
+                for k in range(start[2], 26):
                     self.params['term'] = chr(97 +i) +chr(97 +j) +chr(97 +k)
+                    print (self.params['term'])
+                    continue
                     self.__crawl()
                     self.state.Update(i, j, k)
 
