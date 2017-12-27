@@ -18,7 +18,7 @@ class SpiderState:
     '''CONSTRUCTOR'''
     def __init__(self, logger):
         self.logger = logger
-        self.__dict_path = './meta.dict.bat'
+        self.__dict_path = 'meta.dict.bat'
         ## this item will store the items that
         ## have been scrapped and stored already
         self.__deserialize()
@@ -35,19 +35,22 @@ class SpiderState:
                 self.dict = json.load(ifp)
                 self.logger.Log("[Success] Deserialisation success")
                 self.logger.Log("Item Count: %d" % (len(self.dict.items())))
-        except:
+        except BaseException as e:
             self.logger.Log("[Warning] Unable to open %s" % self.__dict_path)
-            self.dict = {'start': [0, 0, 0]}
+            self.logger.Log("[Error] %s" % str(e))
+            self.dict = {'start': [0, 12, 16]}
+            
 
     '''PRIVATE METHOD to serialize state object'''
     def __serialize(self):
         try:
             with open(self.__dict_path, 'w') as ofp:
-                json.dump(ofp, self.dict)
+                json.dump(self.dict, ofp)
                 self.logger.Log("[Success] Serialization success")
-        except:
+        except BaseException as e:
             self.logger.Log("[Warning] Unable to write %s" % self.__dict_path)
             self.logger.Log("[Info] dump of state: %s" % json.dumps(self.dict))
+            self.logger.Log("[Error] %s" % str(e))
 
     '''EXIT METHOD'''
     def __exit__(self, exc_type, exc_value, traceback):
@@ -81,8 +84,6 @@ class Spider:
             for j in range(start[1], 26):
                 for k in range(start[2], 26):
                     self.params['term'] = chr(97 +i) +chr(97 +j) +chr(97 +k)
-                    # print (self.params['term'])
-                    # continue
                     self.__crawl()
                     self.state.Update(i, j, k)
 
