@@ -65,6 +65,7 @@ class Spider:
         self.requestPerMin = 15
         self.retryLimit = 10
         self.timeout = 65
+        self.cooloffTimeout = 300
         self.params = {'term': None,
             'country': 'US',
             'media': 'software',
@@ -80,8 +81,8 @@ class Spider:
             for j in range(start[1], 26):
                 for k in range(start[2], 26):
                     self.params['term'] = chr(97 +i) +chr(97 +j) +chr(97 +k)
-                    print (self.params['term'])
-                    continue
+                    # print (self.params['term'])
+                    # continue
                     self.__crawl()
                     self.state.Update(i, j, k)
 
@@ -101,7 +102,7 @@ class Spider:
         data = self.core.Get(self.params)
         if not data.success:
             self.logger.Log("No success, wait for timeout")
-            time.sleep(self.timeout)
+            time.sleep(self.cooloffTimeout)
             self.crawl(retry + 1)
 
         self.exporter.WriteRows(data.results)

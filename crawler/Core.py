@@ -99,7 +99,7 @@ class Core:
             return ret.Set(req.json())
         else:
             ret = CoreResponse(False, req.headers)
-            return ret.SetResponseCode(ret.status_code)
+            return ret.SetResponseCode(req.status_code)
 
     def __getUrl(self, params):
         i = 0
