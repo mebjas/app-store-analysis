@@ -104,6 +104,6 @@ class Spider:
         if not data.success:
             self.logger.Log("No success, wait for timeout")
             time.sleep(self.cooloffTimeout)
-            self.crawl(retry + 1)
+            self.__crawl(retry + 1)
 
         self.exporter.WriteRows(data.results)
