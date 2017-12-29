@@ -18,43 +18,45 @@ class SpiderState:
     '''CONSTRUCTOR'''
     def __init__(self, logger):
         self.logger = logger
-        self.__dict_path = 'meta.dict.bat'
-        ## this item will store the items that
-        ## have been scrapped and stored already
+        # self.__dict_path = 'meta.dict.bat'
+        self.__dict_path = 'dict.txt'
+        self.__dict = {}
         self.__deserialize()
+
+        # create a file pointer for append
+        self.__ofp = open(self.__dict_path, 'a')
     
     '''Public method to update the state'''
-    def Update(self, i, j, k):
-        self.dict['start'] = [i, j, k]
-        self.__serialize()
+    def Update(self, term):
+        self.__dict[term] = True
+        self.__ofp.write(term +"\n")
+
+    '''Public Method to check if crawl is needed for a specific term'''
+    def CrawlNeeded(self, term):
+        return term not in self.__dict
 
     '''private method to deserialize if metadata exist in file'''
     def __deserialize(self):
         try:
             with open(self.__dict_path, 'r') as ifp:
-                self.dict = json.load(ifp)
-                self.logger.Log("[Success] Deserialisation success")
-                self.logger.Log("Item Count: %d" % (len(self.dict.items())))
-        except BaseException as e:
-            self.logger.Log("[Warning] Unable to open %s" % self.__dict_path)
-            self.logger.Log("[Error] %s" % str(e))
-            self.dict = {'start': [0, 12, 16]}
-            
+                lines = [line.rstrip('\n') for line in ifp]
+                self.logger.Log("[Success] Deserialisation success for done dict")
+                self.logger.Log("[Information] %d items already dealt with, %d left" % (len(lines), (26*26*26 - len(lines))))
 
-    '''PRIVATE METHOD to serialize state object'''
-    def __serialize(self):
-        try:
-            with open(self.__dict_path, 'w') as ofp:
-                json.dump(self.dict, ofp)
-                self.logger.Log("[Success] Serialization success")
-        except BaseException as e:
-            self.logger.Log("[Warning] Unable to write %s" % self.__dict_path)
-            self.logger.Log("[Info] dump of state: %s" % json.dumps(self.dict))
-            self.logger.Log("[Error] %s" % str(e))
+                for line in lines:
+                    if line.strip() != "":
+                        self.__dict[line.strip()] = True
 
-    '''EXIT METHOD'''
+                self.logger.Log("[Success] __done_dict created")
+
+        except BaseException as e:
+            self.logger.Log("[Warning] [Probable] Unable to open %s" % self.__dict_path)
+            self.logger.Log("[Error] %s" % str(e))
+            sys.exit(0)
+
+    # '''EXIT METHOD'''
     def __exit__(self, exc_type, exc_value, traceback):
-        self.Serialize()
+        self.__ofp.close()
 
 '''Actual spider logic - wait, retries and all'''
 class Spider:
@@ -65,33 +67,38 @@ class Spider:
         self.exporter = exporter
 
         self.state = SpiderState(logger)
-        self.requestPerMin = 15
+        self.requestPerMin = 20
         self.retryLimit = 10
         self.timeout = 65
-        self.cooloffTimeout = 300
+        self.cooloffTimeout = 65
         self.params = {'term': None,
             'country': 'US',
             'media': 'software',
             'limit': '200'}
 
     '''Public method to start the process'''
-    def Start(self):
+    def Start(self, verbose=False):
         cycleCount = 0
 
-        start = [i for i in self.state.dict['start']]
+        for i in range(0, 26):
+            for j in range(0, 26):
+                for k in range(0, 26):
+                    # check if term is already done
+                    # crawl only if needed
+                    term = chr(97 +i) +chr(97 +j) +chr(97 +k)
+                    if self.state.CrawlNeeded(term):
+                        self.params['term'] = term
+                        self.__crawl()
+                        self.state.Update(term)
 
-        for i in range(start[0], 26):
-            for j in range(start[1], 26):
-                for k in range(start[2], 26):
-                    self.params['term'] = chr(97 +i) +chr(97 +j) +chr(97 +k)
-                    self.__crawl()
-                    self.state.Update(i, j, k)
+                        cycleCount = cycleCount + 1
 
-                    cycleCount = cycleCount + 1
-                    if cycleCount >= self.requestPerMin:
-                        self.logger.Log("Sleeping for %d seconds" % self.timeout)
-                        time.sleep(self.timeout)
-                        cycleCount = 0
+                        if cycleCount >= self.requestPerMin:
+                            self.logger.Log("Sleeping for %d seconds" % self.timeout)
+                            time.sleep(self.timeout)
+                            cycleCount = 0
+                    elif verbose:
+                        self.logger.Log("Skipping: %s" % term)
 
     '''Private method to crawl data, load and send to exporter'''
     def __crawl(self, retry = 0):

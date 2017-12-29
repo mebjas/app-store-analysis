@@ -68,9 +68,9 @@ class CoreResponse:
     def __init__(self, success, headers=False):
         self.success = success
         self.headers = headers
+        self.results = []
 
     def Set(self, result):
-        self.results = []
         for row in result['results']:
             self.results.append(NormalizedData(row))
 
