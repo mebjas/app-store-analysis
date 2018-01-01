@@ -27,7 +27,6 @@ class NormalizedData:
         self.artistName = row['artistName']
         self.artistId = row['artistId']
         self.genres = row['genres']
-        self.price = row['price']
         self.description = row['description']
         self.trackName = row['trackName']
         self.bundleId = row['bundleId']
@@ -35,9 +34,14 @@ class NormalizedData:
         self.primaryGenreName = row['primaryGenreName']
         self.releaseDate = row['releaseDate']
         self.minimumOsVersion = row['minimumOsVersion']
-        self.formattedPrice = row['formattedPrice']
         self.primaryGenreId = row['primaryGenreId']
         
+        try:
+            self.price = row['price']
+            self.formattedPrice = row['formattedPrice']
+        except:
+            self.price = 0
+            self.formattedPrice = 0
 
         try:
             self.averageUserRating = row['averageUserRating']
