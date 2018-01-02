@@ -1,3 +1,4 @@
+import sys
 from Logger import FileLogger, ConsoleLogger, Logger
 from Core import Core
 from Exporter import Exporter, CSVExporter
