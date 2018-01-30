@@ -1,6 +1,9 @@
 # -------------------------------------------
-# Classes to deal with logging and monitoring
+# Classes to deal with crawling tasks; Deals with terms that
+# are already crawled; Deals with request limit per minutes;
+# Handles request failures, retries and cool off intervals
 # -------------------------------------------
+
 import sys
 import os
 import json
@@ -10,33 +13,30 @@ from Logger import FileLogger, ConsoleLogger, Logger
 from Core import Core
 from Exporter import Exporter, CSVExporter
 
-'''
-Class to deal with state of crawler
-So that we can restart from where it exited
-'''
 class SpiderState:
-    '''CONSTRUCTOR'''
+    '''
+    Class to deal with state of crawler
+    So that we can restart from where it exited
+    '''
+
     def __init__(self, logger):
-        self.logger = logger
-        # self.__dict_path = 'meta.dict.bat'
-        self.__dict_path = 'dict.txt'
-        self.__dict = {}
+        '''CONSTRUCTOR'''
+
+        # properties of this class
+        self.logger = logger                    # logger chain object
+        self.__dict_path = 'dict.txt'           # path of dictionary, meta file
+                                                # this file contains keys that are already crawled
+        self.__dict = {}                        # Map to hold keys already crawled
+        
+        # call private method to load the keys already crawled into memory
         self.__deserialize()
 
-        # create a file pointer for append
+        # create a file pointer for append data to meta file, as more data is crawled
+        # and loaded;
         self.__ofp = open(self.__dict_path, 'a')
     
-    '''Public method to update the state'''
-    def Update(self, term):
-        self.__dict[term] = True
-        self.__ofp.write(term +"\n")
-
-    '''Public Method to check if crawl is needed for a specific term'''
-    def CrawlNeeded(self, term):
-        return term not in self.__dict
-
-    '''private method to deserialize if metadata exist in file'''
     def __deserialize(self):
+        '''private method to deserialize if metadata exist in file'''
         try:
             with open(self.__dict_path, 'r') as ifp:
                 lines = [line.rstrip('\n') for line in ifp]
@@ -54,39 +54,83 @@ class SpiderState:
             self.logger.Log("[Error] %s" % str(e))
             sys.exit(0)
 
-    # '''EXIT METHOD'''
     def __exit__(self, exc_type, exc_value, traceback):
+        '''EXIT METHOD'''
+
         self.__ofp.close()
 
-'''Actual spider logic - wait, retries and all'''
-class Spider:
-    '''Constructor'''
-    def __init__(self, logger, core, exporter):
-        self.logger = logger
-        self.core = core
-        self.exporter = exporter
+    def Update(self, term):
+        '''
+        Public method to update the state
+        '''
 
-        self.state = SpiderState(logger)
-        self.requestPerMin = 20
-        self.retryLimit = 10
-        self.timeout = 65
-        self.cooloffTimeout = 65
-        self.params = {'term': None,
+        self.__dict[term] = True
+        self.__ofp.write(term +"\n")
+
+    def IsCrawlNeeded(self, term):
+        '''
+        Public Method to check if crawl is needed for a specific term
+        '''
+
+        return term not in self.__dict
+
+class Spider:
+    '''Class that implements actual spider logic wait, retries and all'''
+
+    def __init__(self, logger, core, exporter):
+        '''Constructor'''
+
+        self.logger = logger                # chain of loggers
+        self.core = core                    # instance of core object
+        self.exporter = exporter            # instance of data exporter
+        self.state = SpiderState(logger)    # instance of spider state
+        self.requestPerMin = 20             # no of requests per minute (config)
+                                            # TODO: load from config file
+        self.retryLimit = 10                # limit for no of retries
+                                            # TODO: load from config file
+        self.timeout = 65                   # timeout after request limit reached
+                                            # TODO: load from config file
+        self.cooloffTimeout = 65            # timeout in case, != 200 status code from server
+                                            # TODO: load from config file
+
+        # default params to be sent to APPLE API
+        self.params = {
+            'term': None,
             'country': 'US',
             'media': 'software',
             'limit': '200'}
 
-    '''Public method to start the process'''
+    def __crawl(self, retry = 0):
+        '''Private method to crawl data, load and send to exporter'''
+        if retry >= self.retryLimit:
+            self.logger.Log("retry limit; exit")
+
+            # TODO: this below is not the right approach! fix it!
+            # @priority: high @labels: nextver
+            sys.exit(0)
+
+        self.logger.Log("[info] CRAWL TERM: %s" % self.params['term'])
+        data = self.core.Get(self.params)
+
+        if not data.success:
+            self.logger.Log("No success, wait for timeout")
+            time.sleep(self.cooloffTimeout)
+            self.__crawl(retry + 1)
+
+        self.exporter.WriteRows(data.results)
+
     def Start(self, verbose=False):
+        '''Public method to start the process'''
         cycleCount = 0
 
         for i in range(0, 26):
             for j in range(0, 26):
                 for k in range(0, 26):
-                    # check if term is already done
-                    # crawl only if needed
+
+                    # check if term is already done & crawl only if needed
                     term = chr(97 +i) +chr(97 +j) +chr(97 +k)
-                    if self.state.CrawlNeeded(term):
+
+                    if self.state.IsCrawlNeeded(term):
                         self.params['term'] = term
                         self.__crawl()
                         self.state.Update(term)
@@ -94,23 +138,10 @@ class Spider:
                         cycleCount = cycleCount + 1
 
                         if cycleCount >= self.requestPerMin:
-                            self.logger.Log("Sleeping for %d seconds" % self.timeout)
+                            if verbose:
+                                self.logger.Log("Sleeping for %d seconds" % self.timeout)
+
                             time.sleep(self.timeout)
                             cycleCount = 0
                     elif verbose:
                         self.logger.Log("Skipping: %s" % term)
-
-    '''Private method to crawl data, load and send to exporter'''
-    def __crawl(self, retry = 0):
-        if retry == self.retryLimit:
-            self.logger.Log("retry limit; exit")
-            sys.exit(0)
-
-        self.logger.Log("[info] CRAWL TERM: %s" % self.params['term'])
-        data = self.core.Get(self.params)
-        if not data.success:
-            self.logger.Log("No success, wait for timeout")
-            time.sleep(self.cooloffTimeout)
-            self.__crawl(retry + 1)
-
-        self.exporter.WriteRows(data.results)

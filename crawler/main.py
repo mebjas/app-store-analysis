@@ -13,8 +13,11 @@ reincarnation = 0
 while True:
     try:
         reincarnation = reincarnation + 1
-        print ("Reincarnation: ", reincarnation)
-        # logging things
+        print ("Reincarnation Cound: ", reincarnation)
+
+        # logging chain - file logger, console logger
+        # TODO: Add an online logger for monitoring purposes
+        # TODO: make logs more understandable
         flog = FileLogger('./log.txt')
         flog.AddNextLogger(ConsoleLogger())
         logger = Logger(flog)

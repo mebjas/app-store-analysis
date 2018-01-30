@@ -1,7 +1,12 @@
 # -------------------------------------------
-# Classes to core crawling and HTTP task and data
-# Normalization
+# Classes to help with core crawling tasks 
+# Involves making HTTP requests to APPLE API Endpoint
+# retreiving results and returns json objects
+#
+# NOTE: these classes don't handle retries they have to be
+# explicitly handled as per business logic
 # -------------------------------------------
+
 import os
 import sys
 import json
@@ -9,10 +14,15 @@ import requests
 import codecs
 from Logger import FileLogger, ConsoleLogger, Logger
 
-'''Normalized data model'''
 class NormalizedData:
-    '''Constructor'''
+    '''
+    Normalized data model for data retrieved from apple apis
+    TODO: introduce properties for icons
+    '''
+
     def __init__(self, row):
+        '''Constructor'''
+
         self.kind = row['kind']
         self.features = row['features']
         self.advisories = row['advisories']
@@ -67,33 +77,68 @@ class NormalizedData:
         except:
             self.releaseNotes = None
 
-'''Data Model for response of request'''
 class CoreResponse:
+    '''
+    Data Model for response of request
+    '''
+
     def __init__(self, success, headers=False):
+        '''Constructor'''
+
         self.success = success
         self.headers = headers
         self.results = []
 
     def Set(self, result):
+        '''Sets the results property'''
+
         for row in result['results']:
             self.results.append(NormalizedData(row))
 
         return self
 
     def SetResponseCode(self, code):
+        '''Method to set response code'''
+
         self.code = code
         return self
 
     def GetHeaders(self):
+        '''Gets the header property'''
+
         return self.headers
 
-'''Class to abstract out http request response'''
 class Core:
-    def __init__(self, URL, logger):
-        self.__base = URL
+    '''
+    Class to abstract out http request response
+    '''
+
+    def __init__(self, baseurl, logger):
+        '''Constructor'''
+
+        self.__base = baseurl
         self.logger = logger
-    
+
+    def __getUrl(self, params):
+        '''private method to generate url based on params'''
+
+        i = 0
+        url = self.__base
+        for k,v in params.items():
+            if i > 0:
+                url = url +'&'
+            i = i + 1
+
+            url = url + k +'=' +v
+        return url
+
     def Get(self, params):
+        '''
+        Gets the data from apple apis based on params
+        @returns data with results if response is OK (200)
+        @returns data with no reslts if response is not OK (200)
+        '''
+
         url = self.__getUrl(params)
         self.logger.Log("Requesting: %s" % url)
 
@@ -104,14 +149,3 @@ class Core:
         else:
             ret = CoreResponse(False, req.headers)
             return ret.SetResponseCode(req.status_code)
-
-    def __getUrl(self, params):
-        i = 0
-        url = self.__base
-        for k,v in params.items():
-            if i > 0:
-                url = url +'&'
-            i = i + 1
-
-            url = url + k +'=' +v
-        return url
